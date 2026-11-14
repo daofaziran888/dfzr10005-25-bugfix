@@ -5,14 +5,25 @@
 """
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import ROUTERS
+from app.services.retention import service as retention_service
 from app.store import store
 
-app = FastAPI(title="数仓治理与运维平台", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """启动时按保留规则当前版本重算回收记录的清理资格，避免沿用历史旧结论。"""
+    retention_service.sync_all_eligibility()
+    yield
+
+
+app = FastAPI(title="数仓治理与运维平台", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

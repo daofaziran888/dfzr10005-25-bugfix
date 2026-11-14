@@ -18,6 +18,7 @@ class RecycleService:
         *,
         keyword: str | None = None,
         status: str | None = None,
+        rule_code: str | None = None,
         page: int = 1,
         size: int = 20,
     ) -> tuple[list[dict[str, Any]], int]:
@@ -26,6 +27,8 @@ class RecycleService:
             rows = [row for row in rows if keyword in str(row.get("记录编号", ""))]
         if status:
             rows = [row for row in rows if row.get("status") == status]
+        if rule_code:
+            rows = [row for row in rows if str(row.get("来源规则编号", "")) == rule_code]
         total = len(rows)
         start = max(page - 1, 0) * size
         return rows[start:start + size], total
@@ -40,10 +43,28 @@ class RecycleService:
         rows = store.rows(MODULE)
         entry = {"id": max((int(row.get("id", 0)) for row in rows), default=0) + 1}
         entry.update({field: values.get(field) for field in REQUIRED_FIELDS})
+        # 可选联动字段（如来源保留规则编号）也要落库，否则清理资格无法挂接
+        for optional in ("来源规则编号",):
+            if optional in values:
+                entry[optional] = values[optional]
         entry["status"] = STATUS_ORDER[0]
         entry["pending"] = True
         entry["abnormal"] = False
         rows.append(entry)
+        # 挂接到保留规则的新回收记录，立即按规则当前版本算出清理资格
+        rule_code = entry.get("来源规则编号")
+        if rule_code:
+            from app.services.retention import service as retention_service
+
+            linked = next(
+                (rule for rule in store.rows("retention") if rule.get("规则编号") == rule_code),
+                None,
+            )
+            if linked is not None:
+                retention_service.sync_recycle_eligibility(linked)
+            else:
+                entry["清理资格"] = "不可清理"
+                entry["判定依据"] = f"来源规则 {rule_code} 不存在，默认保留待人工确认"
         return entry, []
 
     def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:

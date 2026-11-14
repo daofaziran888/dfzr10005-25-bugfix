@@ -27,6 +27,10 @@ class Store:
                 return row
         return None
 
+    def next_id(self, module: str) -> int:
+        """取该模块下一个自增主键，调用方需自行保证在模块锁内使用。"""
+        return max((int(row.get("id", 0)) for row in self.rows(module)), default=0) + 1
+
     def overview(self) -> dict[str, object]:
         modules: list[dict[str, object]] = []
         for name in self.module_names():

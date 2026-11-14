@@ -30,6 +30,21 @@ def list_entries(
     return PageResult(items=items, total=total, page=page, size=size)
 
 
+# 固定路径必须声明在 /{entry_id} 之前，否则会被参数路由吞掉返回 422
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出表生命周期管理清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "lifecycle", "total": total, "items": items}
+
+
+@router.get("/cleanup-results")
+def cleanup_results() -> dict[str, Any]:
+    """生命周期结果清单：按保留规则当前已生效版本逐条给出清理资格与判定依据。"""
+    items = service.cleanup_results()
+    return {"module": "lifecycle", "total": len(items), "items": items}
+
+
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条生命周期策略明细；不存在时给出可读的错误说明。"""
@@ -56,10 +71,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出表生命周期管理清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "lifecycle", "total": total, "items": items}

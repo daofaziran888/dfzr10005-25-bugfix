@@ -23,6 +23,10 @@
         <span>{{ field }}</span>
         <input v-model="filters[field]" :placeholder="`按${field}检索`" />
       </label>
+      <label class="filter-item">
+        <span>来源保留规则</span>
+        <input v-model="filters.rule_code" placeholder="如 RETN-0002，定位受影响记录" />
+      </label>
       <button class="btn" type="submit">查询</button>
       <button class="btn ghost" type="button" @click="resetFilters">重置条件</button>
     </form>
@@ -31,12 +35,19 @@
       <thead>
         <tr>
           <th v-for="column in columns" :key="column">{{ column }}</th>
+          <th>来源规则</th>
+          <th>清理资格（联动保留规则）</th>
           <th>可执行动作</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td>{{ row['来源规则编号'] || '—' }}</td>
+          <td>
+            <span class="tag" :class="eligibilityClass(row['清理资格'])">{{ row['清理资格'] || '待判定' }}</span>
+            <div class="muted-text">{{ row['判定依据'] || '' }}</div>
+          </td>
           <td class="row-actions">
             <button
               v-for="action in actions"
@@ -50,7 +61,7 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 1" class="empty-state">暂无数据回收站数据，可先登记回收记录</td>
+          <td :colspan="columns.length + 3" class="empty-state">暂无数据回收站数据，可先登记回收记录</td>
         </tr>
       </tbody>
     </table>
@@ -78,11 +89,17 @@ const stats = [{"label": "回收记录总数", "value": 0}, {"label": "待恢复
 const rows = ref<Row[]>([])
 const total = ref(0)
 const errorMessage = ref('')
-const filters = ref<Record<string, string>>({})
+const filters = ref<Record<string, string>>({ keyword: '', rule_code: '' })
 const filterFields = columns.slice(0, 3)
 
+function eligibilityClass(value?: unknown): string {
+  if (value === '可清理') return 'warn'
+  if (value === '例外保留') return 'ok'
+  return 'muted'
+}
+
 function resetFilters() {
-  filters.value = {}
+  filters.value = { keyword: '', rule_code: '' }
   void reload()
 }
 
